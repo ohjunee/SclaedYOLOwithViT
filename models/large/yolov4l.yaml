@@ -1,0 +1,67 @@
+# parameters
+nc: 80  # number of classes
+depth_multiple: 1.0  # expand model depth
+width_multiple: 1.0  # expand layer channels
+
+# anchors
+anchors:
+  - [12,16, 19,36, 40,28]  # P3/8
+  - [36,75, 76,55, 72,146]  # P4/16
+  - [142,110, 192,243, 459,401]  # P5/32
+
+# yolov4l backbone, Bottom-up
+backbone:
+  # [from, number, module, args]
+  # from:   previous layer
+  # number: module depth
+  # args:   [n_filter, size, stride]
+  [[-1, 1, Conv, [32, 3, 1]],       # 0
+   [-1, 1, Conv, [64, 3, 2]],       # 1-C1/2 conv1
+   [-1, 1, Bottleneck, [64]],       # 2
+   [-1, 1, Conv, [128, 3, 2]],      # 3-C2/4 conv2
+   [-1, 2, BottleneckCSP, [128]],   # 4
+   [-1, 1, Conv, [256, 3, 2]],      # 5-C3/8 conv3
+   [-1, 8, BottleneckCSP, [256]],   # 6                 ... concat
+   [-1, 1, Conv, [512, 3, 2]],      # 7-C4/16 conv4
+   [-1, 8, BottleneckCSP, [512]],   # 8                 ... concat
+   [-1, 1, Conv, [1024, 3, 2]],     # 9-C5/32 conv5
+   [-1, 4, BottleneckCSP, [1024]],  # 10
+  ]
+
+# yolov4l head
+# na = len(anchors[0])
+head:
+   [[-1, 1, SPP, [512, [5, 9, 13]]],
+# top-down
+   [-1, 1, Conv, [256, 1, 1]],                  # 12: P5'         (256, 1x1 conv)
+
+   # nn.Upsample: args = [size, scale_factor, mode]
+   [-1, 1, nn.Upsample, [None, 2, 'nearest']],  # 13: P5' * 2
+   [8, 1, Conv, [256, 1, 1]],                   # 14: C4          (256, 1x1 conv)
+   [[-1, -2], 1, Concat, [1]],                  # 15: P5 * 2 + C4 (concat)
+   [-1, 2, BottleneckCSP2, [256]],              # 16: P4
+
+   [-1, 1, Conv, [128, 1, 1]],                  # 17: P4'         (128, 1X1 conv)
+
+   [-1, 1, nn.Upsample, [None, 2, 'nearest']],  # 18: P4' * 2
+   [6, 1, Conv, [128, 1, 1]],                   # 19: C3          (128, 1x1 conv)
+   [[-1, -2], 1, Concat, [1]],                  # 20: P4' * 2 + C3 (concat)
+   [-1, 2, BottleneckCSP2, [128]],              # 21: P3(N3)
+
+# Bottom up path, PAnet
+   [-1, 1, Conv, [256, 3, 1]],                  # 22: D3         (256, 3x3 conv)              ... detect 1
+
+   [-2, 1, Conv, [256, 3, 2]],                  # 23: P3 / 2      (256, 3x3 conv, stride 2)
+   [[-1, 16], 1, Concat, [1]],                  # 24: P4 + P3 / 2 (concat)
+   [-1, 2, BottleneckCSP2, [256]],              # 25: N4
+
+   [-1, 1, Conv, [512, 3, 1]],                  # 26: D4         (512, 3x3 conv)              ... detect 2
+
+   [-2, 1, Conv, [512, 3, 2]],                  # 27: N4 / 2      (512, 3x3 conv, stride 2)
+   [[-1, 11], 1, Concat, [1]],                  # 28: N4 / 2 + P5 (concat)
+   [-1, 2, BottleneckCSP2, [512]],              # 29: N5
+
+   [-1, 1, Conv, [1024, 3, 1]],                 # 30: D5         (1024, 3x3 conv)             ... detect 3
+
+   [[22,26,30], 1, Detect, [nc, anchors]],      # Detect(D3, D4, D5)
+  ]

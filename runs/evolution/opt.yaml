@@ -1,0 +1,25 @@
+cfg: models/yolov4l-Focus-backbone-test.yaml
+data: data/coco.yaml
+hyp: ''
+epochs: 110
+batch_size: 13
+img_size:
+- 640
+- 640
+rect: false
+resume: false
+nosave: false
+notest: false
+noautoanchor: false
+evolve: false
+bucket: ''
+cache_images: false
+weights: ''
+name: ''
+device: 2,3
+multi_scale: false
+single_cls: false
+sync_bn: true
+local_rank: 1
+total_batch_size: 26
+world_size: 2
